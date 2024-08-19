@@ -1,0 +1,185 @@
+<?php
+// Database connection settings
+$servername = "localhost";
+$username = "root";
+$password = "";
+$dbname = "svg_test";
+
+// Create connection
+$conn = new mysqli($servername, $username, $password, $dbname);
+
+// Check connection
+if ($conn->connect_error) {
+    die("Connection failed: " . $conn->connect_error);
+}
+
+// Handle form submission
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $elementName = $conn->real_escape_string($_POST['elementName']);
+    $elementId = $conn->real_escape_string($_POST['elementId']);
+    $x = $conn->real_escape_string($_POST['elementX']);
+    $y = $conn->real_escape_string($_POST['elementY']);
+    $width = $conn->real_escape_string($_POST['elementWidth']);
+    $height = $conn->real_escape_string($_POST['elementHeight']);
+
+    // Check if the element already exists
+    $sqlCheck = "SELECT * FROM svg_clicks WHERE element_id = '$elementId' AND svg_element_id=0";
+    $resultCheck = $conn->query($sqlCheck);
+
+    if ($resultCheck->num_rows > 0) {
+        // Update existing record
+        $sql = "UPDATE svg_clicks SET name='$elementName', x='$x', y='$y', width='$width', height='$height' WHERE element_id='$elementId' AND svg_element_id=0";
+    } else {
+        // Insert new record
+        $sql = "INSERT INTO svg_clicks (name, element_id, x, y, width, height,svg_element_id) VALUES ('$elementName', '$elementId', '$x', '$y', '$width', '$height',0)";
+    }
+
+    if ($conn->query($sql) === TRUE) {
+        $message = 'Data saved successfully!';
+    } else {
+        $message = 'Error: ' . $conn->error;
+    }
+}
+
+// Fetch the SVG content
+$svgFile = 'drawing.svg';
+$svgContent = file_get_contents($svgFile);
+
+// Fetch the labels from the database
+$sql = "SELECT x, y, width, height, name, element_id FROM svg_clicks WHERE svg_element_id=0";
+$result = $conn->query($sql);
+
+if ($result->num_rows > 0) {
+    $dom = new DOMDocument();
+    $dom->loadXML($svgContent);
+    $svg = $dom->getElementsByTagName('svg')->item(0);
+
+    // Remove existing text elements to avoid duplication
+    foreach ($svg->getElementsByTagName('text') as $textElement) {
+        $svg->removeChild($textElement);
+    }
+
+    while ($row = $result->fetch_assoc()) {
+        $textElement = $dom->createElement('text', htmlspecialchars($row['name']));
+        $textElement->setAttribute('x', $row['x'] + $row['width'] / 2);
+        $textElement->setAttribute('y', $row['y'] + $row['height'] / 2);
+        $textElement->setAttribute('text-anchor', 'middle');
+        $textElement->setAttribute('dominant-baseline', 'central');
+        $textElement->setAttribute('class', 'label');
+
+        $svg->appendChild($textElement);
+    }
+
+    $svgContent = $dom->saveXML();
+}
+
+// Close the connection
+$conn->close();
+?>
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive SVG Example with Form</title>
+    <style>
+        .interactive {
+            cursor: pointer;
+            fill: #fff;
+            stroke: #000;
+        }
+        .interactive:hover {
+            fill: #f0f0f0;
+        }
+        #formContainer {
+            margin-top: 20px;
+            display: none;
+        }
+        .label {
+            font-size: 12px;
+            fill: #000;
+        }
+    </style>
+</head>
+<body>
+    <h1>Interactive SVG Example with Form</h1>
+
+    <!-- Container where the SVG will be loaded -->
+    <div id="svgContainer"><?php echo $svgContent; ?></div>
+
+    <!-- Form to input additional details -->
+    <div id="formContainer">
+        <h2>Enter Details for the Selected Area</h2>
+        <form id="dataForm">
+            <label for="elementName">Element Name:</label>
+            <input type="text" id="elementName" name="elementName" required><br><br>
+            <input type="hidden" id="elementId" name="elementId">
+            <input type="hidden" id="elementX" name="elementX">
+            <input type="hidden" id="elementY" name="elementY">
+            <input type="hidden" id="elementWidth" name="elementWidth">
+            <input type="hidden" id="elementHeight" name="elementHeight">
+            <button type="submit">Save Data</button>
+        </form>
+    </div>
+
+    <script>
+        let selectedElementId = null;
+        let selectedArea = null;
+
+        // Function to add interactivity to the SVG elements
+        function addInteractivity() {
+            const svgDoc = document.getElementById('svgContainer').querySelector('svg');
+            const interactiveElements = svgDoc.querySelectorAll('rect');
+
+            interactiveElements.forEach(function(element) {
+                element.classList.add('interactive'); // Add the interactive class
+
+                element.addEventListener('click', function() {
+                    selectedElementId = this.getAttribute('id');
+                    const bbox = this.getBBox();
+                    selectedArea = {
+                        x: bbox.x,
+                        y: bbox.y,
+                        width: bbox.width,
+                        height: bbox.height
+                    };
+
+                    // Show the form and fill in the hidden inputs
+                    document.getElementById('formContainer').style.display = 'block';
+                    document.getElementById('elementId').value = selectedElementId;
+                    document.getElementById('elementX').value = selectedArea.x;
+                    document.getElementById('elementY').value = selectedArea.y;
+                    document.getElementById('elementWidth').value = selectedArea.width;
+                    document.getElementById('elementHeight').value = selectedArea.height;
+                });
+            });
+        }
+
+        // Handle form submission
+        document.getElementById('dataForm').addEventListener('submit', function(event) {
+            event.preventDefault();
+
+            const formData = new FormData(this);
+
+            fetch(window.location.href, {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.text())
+            .then(data => {
+                console.log('Success:', data);
+                alert('Data saved successfully!');
+                // Reload the page to see the updated SVG
+                window.location.reload();
+            })
+            .catch(error => {
+                console.error('Error:', error);
+            });
+        });
+
+        // Initialize the SVG and add interactivity when the page is loaded
+        document.addEventListener('DOMContentLoaded', addInteractivity);
+    </script>
+</body>
+</html>
