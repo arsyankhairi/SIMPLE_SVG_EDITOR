@@ -16,13 +16,20 @@ if ($conn->connect_error) {
 // Get SVG ID from query string
 $svgId = isset($_GET['id']) ? intval($_GET['id']) : 0;
 
-// Fetch the SVG content
+// Fetch the SVG file path
 $sql = "SELECT svg_element FROM svg_elements WHERE id = $svgId";
 $result = $conn->query($sql);
 
 if ($result->num_rows > 0) {
     $row = $result->fetch_assoc();
-    $svgContent = $row['svg_element'];
+    $svgFilePath = 'svg_files/'.$row['svg_element'];
+
+    // Ensure the file exists
+    if (!file_exists($svgFilePath)) {   
+        die('SVG file not found.');
+    }
+
+    $svgContent = file_get_contents($svgFilePath);
 } else {
     die('SVG not found.');
 }
@@ -46,7 +53,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $sql = "UPDATE svg_clicks SET name='$elementName', x='$x', y='$y', width='$width', height='$height' WHERE element_id='$elementId' AND svg_element_id='$svg_element_id'";
     } else {
         // Insert new record
-        $sql = "INSERT INTO svg_clicks (name, element_id, x, y, width, height,svg_element_id) VALUES ('$elementName', '$elementId', '$x', '$y', '$width', '$height','$svg_element_id')";
+        $sql = "INSERT INTO svg_clicks (name, element_id, x, y, width, height, svg_element_id) VALUES ('$elementName', '$elementId', '$x', '$y', '$width', '$height', '$svg_element_id')";
     }
 
     if ($conn->query($sql) === TRUE) {
@@ -56,11 +63,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     // Reload SVG content after updating
-    $sql = "SELECT svg_element FROM svg_elements WHERE id = $svgId";
+    $sql = "SELECT file_path FROM svg_elements WHERE id = $svgId";
     $result = $conn->query($sql);
     if ($result->num_rows > 0) {
         $row = $result->fetch_assoc();
-        $svgContent = $row['svg_element'];
+        $svgFilePath = $row['file_path'];
+
+        // Ensure the file exists
+        if (!file_exists($svgFilePath)) {
+            die('SVG file not found.');
+        }
+
+        $svgContent = file_get_contents($svgFilePath);
     }
 }
 

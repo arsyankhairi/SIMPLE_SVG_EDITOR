@@ -42,6 +42,7 @@ $result = $conn->query($sql);
 </head>
 <body>
     <h1>SVG Listings</h1>
+    <a href="create_svg.php">New SVG</a>
     <div class="svg-listing">
         <?php
         if ($result->num_rows > 0) {
@@ -52,11 +53,11 @@ $result = $conn->query($sql);
                 ?>
                 <div class="svg-item">
                     <h3>SVG ID: <?php echo $svgId; ?></h3>
-                    <a href="process_svg.php?id=<?php echo $svgId; ?>">
-                        <div class="svg-content">
-                            <?php echo $svgData; ?>
-                        </div>
-                    </a>
+                    <div class="svg-content">
+                        <?php echo $svgData; ?>
+                    </div>
+                    <a href="edit_svg.php?id=<?php echo $svgId; ?>">Edit SVG</a>
+                    <a href="process_svg.php?id=<?php echo $svgId; ?>">Label SVG</a>
                 </div>
                 <?php
             }
